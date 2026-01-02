@@ -1,14 +1,9 @@
 package com.MyProject.Ecomm.model;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.math.BigDecimal;
-import java.util.Date;
-
 @Entity
 @Data
 @AllArgsConstructor
@@ -19,27 +14,30 @@ public class ProductModel {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    private String name;
-    // ✅ CHANGED: desc -> description
-    private String description;
-    private String brand;
+    // --- Core Vehicle Details ---
 
-    private BigDecimal price;
-    private String category;
+    private String name;         // Car Model Name (e.g., 'Honda City')
+    private String description; // Features, details, etc.
+    private String brand;      // Manufacturer (e.g., 'Honda')
 
-    // ProductModel.java (Corrected to match 09/30/2025 format)
-   @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "MM-dd-yyyy")
-   private Date releaseDate;
+    // FIX: Changed BigDecimal to double for easier mapping from JavaScript numbers
+    private double dailyRentalRate; // Cost to rent per day
 
+    private String category;    // Vehicle Type (e.g., 'Sedan', 'SUV')
 
+    private int modelYear;      // Year the car was manufactured (Replaced 'releaseDate')
+    private String fuelType;    // e.g., 'Petrol', 'Diesel'
+    private int seatingCapacity;// Number of seats
 
-    private boolean productAvailable;
+    private String AvailableLocation; // Location for car collection
 
-    private int stockQuantity;
+    // --- Image Details ---
 
     private String imageName;
     private String imageType;
 
     @Lob
     private byte[] imageData;
+
+    // Total Fields: 13
 }

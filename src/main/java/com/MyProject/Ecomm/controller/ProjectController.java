@@ -1,5 +1,4 @@
 package com.MyProject.Ecomm.controller;
-
 import com.MyProject.Ecomm.model.ProductModel;
 import com.MyProject.Ecomm.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,7 +32,8 @@ public class ProjectController {
 
     // 2. Get product by ID
     @GetMapping("/products/{pathId}")
-    public ResponseEntity<ProductModel> getProductById(@PathVariable int pathId) {
+    public ResponseEntity<ProductModel>
+    getProductById(@PathVariable int pathId) {
         Optional<ProductModel> productOptional = productService.getProductById(pathId);
         return productOptional
                 .map(product -> new ResponseEntity<>(product, HttpStatus.OK))
@@ -48,8 +48,6 @@ public class ProjectController {
             return new ResponseEntity<>(product1, HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
-
-
         }
     }
 
@@ -61,16 +59,17 @@ public class ProjectController {
         byte[] imageFile = product.getImageData();
 
         return ResponseEntity.ok().contentType(MediaType.valueOf(product.getImageType())).body(imageFile);
-
     }
     //alternate mapping for prouct req
+
    @GetMapping("/product/{productId}/image")
    public ResponseEntity<byte[]> getImageByProductIdAlt(@PathVariable int productId) {
        return getImageByProductId(productId);
    }
     // 5. Update product by ID
     @PutMapping("/products/{id}")
-    public ResponseEntity<String> updateProduct(@PathVariable int id, @RequestPart ProductModel product, @RequestPart MultipartFile imageFile) {
+    public ResponseEntity<String>
+    updateProduct(@PathVariable int id, @RequestPart ProductModel product, @RequestPart MultipartFile imageFile) {
 
         ProductModel product1 = null;
         try {
@@ -83,10 +82,7 @@ public class ProjectController {
         } else {
             return new ResponseEntity<>("Failed to update", HttpStatus.BAD_REQUEST);
         }
-
-
     }
-
     // 6. Delete product by ID
     @DeleteMapping("/products/{id}")
     public ResponseEntity<String> deleteProduct(@PathVariable int id) {
@@ -97,7 +93,6 @@ public class ProjectController {
             return new ResponseEntity<>("FAILED TO DELETE: Product not found.", HttpStatus.NOT_FOUND);
         }
     }
-
     // 7. Search products by keyword
     @GetMapping("/products/search")
     public ResponseEntity<List<ProductModel>> searchProducts(@RequestParam String keyword) {

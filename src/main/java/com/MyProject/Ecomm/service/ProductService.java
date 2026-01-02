@@ -20,12 +20,12 @@ public class ProductService {
         this.repo = repo;
     }
 
-    // 1. Get all products
+    // 1. Get all products (cars)
     public List<ProductModel> getAllProducts() {
         return repo.findAll();
     }
 
-    // 2. Get product by ID
+    // 2. Get product (car) by ID
     public Optional<ProductModel> getProductById(int prodId) {
         return repo.findById(prodId);
     }
@@ -41,27 +41,42 @@ public class ProductService {
 
         return repo.save(product);
     }
-    //get the image
+    
+    // Get the image
     public ProductModel getProduct(int id) {
         return repo.findById(id).orElse(null);
     }
 
-    // 4. Update product (handles image)
+    // 4. Update product (handles image and all car fields)
     public ProductModel updateProduct(int prodId, ProductModel productDetails, MultipartFile imageFile) throws IOException {
         Optional<ProductModel> existing = repo.findById(prodId);
 
         if (existing.isPresent()) {
             ProductModel existingProduct = existing.get();
 
-            // ✅ UPDATED: Used getters/setters for 'description', 'productAvailable', 'stockQuantity'
+            // --- Updated Car Rental Fields with Correct Lombok Getters/Setters ---
+            
             existingProduct.setName(productDetails.getName());
             existingProduct.setDescription(productDetails.getDescription());
             existingProduct.setBrand(productDetails.getBrand());
-            existingProduct.setPrice(productDetails.getPrice());
+            
+            // ✅ CORRECTED: Using setDailyRentalRate and getDailyRentalRate (Replaced 'price')
+            existingProduct.setDailyRentalRate(productDetails.getDailyRentalRate());
+            
             existingProduct.setCategory(productDetails.getCategory());
-            existingProduct.setReleaseDate(productDetails.getReleaseDate());
-            existingProduct.setProductAvailable(productDetails.isProductAvailable());
-            existingProduct.setStockQuantity(productDetails.getStockQuantity());
+            
+            // ✅ CORRECTED: Using setModelYear and getModelYear (Replaced 'releaseDate')
+            existingProduct.setModelYear(productDetails.getModelYear());
+            
+            // ✅ CORRECTED: Using setFuelType and getFuelType (Replaced 'productAvailable')
+            existingProduct.setFuelType(productDetails.getFuelType());
+            
+            // ✅ CORRECTED: Using setSeatingCapacity and getSeatingCapacity (Replaced 'stockQuantity')
+            existingProduct.setSeatingCapacity(productDetails.getSeatingCapacity());
+            
+            // ✅ CORRECTED: Using setAvailableLocation and getAvailableLocation (Replaced 'transmissionType')
+            existingProduct.setAvailableLocation(productDetails.getAvailableLocation());
+
 
             // Update image data only if a new file is provided
             if (imageFile != null && !imageFile.isEmpty()) {
@@ -75,7 +90,7 @@ public class ProductService {
         return null;
     }
 
-    // 5. Delete product by ID
+    // 5. Delete product (car) by ID
     public boolean deleteProduct(int prodId) {
         if (repo.existsById(prodId)) {
             repo.deleteById(prodId);
@@ -84,7 +99,7 @@ public class ProductService {
         return false;
     }
 
-    // 6. Search products
+    // 6. Search products (cars)
     public List<ProductModel> searchProducts(String keyword) {
         return repo.searchProducts(keyword);
     }
