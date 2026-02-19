@@ -1,9 +1,15 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:8080/api", // direct backend URL — recommended for debugging
-  // timeout: 10000,
+  baseURL: "http://localhost:8080/api", // restore /api for cars
 });
 
-delete API.defaults.headers.common["Authorization"];
+API.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export default API;

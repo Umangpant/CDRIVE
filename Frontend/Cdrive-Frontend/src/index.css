@@ -33,6 +33,29 @@
   z-index: 20;           /* appear above footer */
 }
 
+.close-add-car {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  font-size: 22px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.close-add-car:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
 /* keep grid rows sizing correctly so later cells stay under the card */
 .form-grid {
   align-content: start;

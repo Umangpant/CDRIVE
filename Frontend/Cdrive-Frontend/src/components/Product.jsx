@@ -1,127 +1,250 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import API from '../axios.jsx';
-import AppContext from '../Context/Context';
+import React, { useState, useEffect, useContext } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import API from "../axios.jsx";
+import AppContext from "../Context/Context";
 
 const Product = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToCart, removeCarFromData } = useContext(AppContext);
+  const { addToCart, auth } = useContext(AppContext);
+  const role = (auth?.role || auth?.user?.role || "").toLowerCase();
+  const isAdmin = role === "admin";
 
   const [product, setProduct] = useState(null);
+  const [imageUrl, setImageUrl] = useState("/placeholder.svg");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [imageUrl, setImageUrl] = useState('/placeholder.svg');
+  const [ownsProduct, setOwnsProduct] = useState(false);
 
+  const resolveAdminId = () => {
+    const direct =
+      auth?.user?.id ??
+      auth?.user?._id ??
+      auth?.user?.userId ??
+      auth?.user?.adminId ??
+      null;
+    if (direct != null) return direct;
+
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      const candidate =
+        payload?.id ??
+        payload?.userId ??
+        payload?.adminId ??
+        payload?.uid ??
+        null;
+      if (candidate == null) return null;
+      const str = String(candidate);
+      return /^\d+$/.test(str) ? str : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // -------------------------
+  // LOAD PRODUCT
+  // -------------------------
   useEffect(() => {
-    if (!id) return;
     const fetchProduct = async () => {
-      setLoading(true);
-      setError(null);
       try {
+        setLoading(true);
+        setError(null);
+
         const res = await API.get(`/products/${id}`);
         const fetched = res.data;
-        setProduct(fetched);
 
-        // Build robust image URL: try backend endpoint first, then static images folder
-        const base = API?.defaults?.baseURL ? API.defaults.baseURL.replace(/\/$/, "") : "";
-        const pid = fetched?.id ?? fetched?._id ?? fetched?.productId;
-        const imageName = fetched?.imageName ?? fetched?.image ?? fetched?.image_name;
+        // ✅ Normalize object (MATCH Home.jsx)
+        const mapped = {
+          id: fetched.id || fetched._id || fetched.productId,
+          name: fetched.name,
+          brand: fetched.brand,
+          modelYear: fetched.modelYear,
+          dailyRentalRate: fetched.dailyRentalRate,
+          category: fetched.category,
+          fuelType: fetched.fuelType,
+          seatingCapacity: fetched.seatingCapacity,
+          availableLocation: fetched.availableLocation,
+          description: fetched.description,
+          imageName: fetched.imageName,
+          addedBy:
+            fetched.addedBy ??
+            fetched.added_by ??
+            fetched.adminId ??
+            fetched.ownerId ??
+            null,
+        };
 
-        if (pid) {
-          setImageUrl(base ? `${base}/products/${pid}/image` : `/api/products/${pid}/image`);
-        } else if (imageName) {
-          // static file served from backend /images/<name>
-          setImageUrl(`${base.replace(/\/api$/, '')}/images/${imageName}`);
-          } else {
-            setImageUrl('/placeholder.svg');
+        setProduct(mapped);
+
+        const base = API?.defaults?.baseURL
+          ? API.defaults.baseURL.replace(/\/$/, "")
+          : "";
+        if (mapped.id) {
+          setImageUrl(`${base}/products/${mapped.id}/image`);
+        } else if (mapped.imageName) {
+          const staticBase = base ? base.replace(/\/api$/, "") : "";
+          setImageUrl(
+            staticBase ? `${staticBase}/images/${mapped.imageName}` : `/images/${mapped.imageName}`
+          );
         }
-
-        setLoading(false);
       } catch (err) {
-        console.error('Error fetching product:', err);
-        setError('Failed to load car details. Check backend.');
+        console.error("Error fetching product:", err);
+        setError("Failed to load product details.");
+      } finally {
         setLoading(false);
       }
     };
+
     fetchProduct();
   }, [id]);
 
+  useEffect(() => {
+    let mounted = true;
+    const checkOwnership = async () => {
+      if (!isAdmin || !id) {
+        if (mounted) setOwnsProduct(false);
+        return;
+      }
+      const adminId = resolveAdminId();
+      if (adminId == null) {
+        if (mounted) setOwnsProduct(false);
+        return;
+      }
+
+      if (product?.addedBy != null) {
+        if (mounted) {
+          setOwnsProduct(String(product.addedBy) === String(adminId));
+        }
+        return;
+      }
+
+      try {
+        const res = await API.get("/admin/products");
+        const list = Array.isArray(res.data) ? res.data : [];
+        const has = list.some((item) => {
+          const itemId = item?.id ?? item?._id ?? item?.productId;
+          return String(itemId) === String(id);
+        });
+        if (mounted) setOwnsProduct(has);
+      } catch {
+        if (mounted) setOwnsProduct(false);
+      }
+    };
+    checkOwnership();
+    return () => {
+      mounted = false;
+    };
+  }, [id, isAdmin, product?.addedBy]);
+
   const handleImageError = (e) => {
-    // fallback to static imageName if available, otherwise placeholder
-    const imageName = product?.imageName ?? product?.image ?? product?.image_name;
+    if (!product) {
+      e.currentTarget.src = "/placeholder.svg";
+      return;
+    }
+    const imageName = product.imageName;
+    const base = API?.defaults?.baseURL
+      ? API.defaults.baseURL.replace(/\/$/, "")
+      : "";
     if (imageName) {
-      const base = API?.defaults?.baseURL ? API.defaults.baseURL.replace(/\/$/, "") : "";
+      const staticBase = base ? base.replace(/\/api$/, "") : "";
       e.currentTarget.onerror = null;
-      e.currentTarget.src = `${base.replace(/\/api$/, '')}/images/${imageName}`;
+      e.currentTarget.src = staticBase
+        ? `${staticBase}/images/${imageName}`
+        : `/images/${imageName}`;
     } else {
-      e.currentTarget.onerror = null;
-      e.currentTarget.src = '/placeholder.svg';
+      e.currentTarget.src = "/placeholder.svg";
     }
   };
 
-  const handleUpdate = () => {
-    // make sure this matches your router path for the UpdateProduct component
-    navigate(`/update-product/${id}`);
-  };
 
-  const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this car?')) return;
-    try {
-      await API.delete(`/products/${id}`);
-      alert('Car successfully deleted!');
-      removeCarFromData(id); // Update context immediately
-      navigate('/');
-    } catch (err) {
-      console.error('Delete error', err);
-      alert('Failed to delete car.');
-    }
-  };
+  if (loading)
+    return <div style={{ marginTop: 150, textAlign: "center" }}>Loading…</div>;
 
-  const handleAddToCart = () => {
-    if (product) addToCart(product);
-  };
+  if (error)
+    return (
+      <div style={{ marginTop: 150, textAlign: "center", color: "red" }}>
+        {error}
+      </div>
+    );
 
-  if (loading) return <div style={{ marginTop: 120, textAlign: 'center' }}>Loading...</div>;
-  if (error) return <div style={{ color: 'red', textAlign: 'center', marginTop: 120 }}>{error}</div>;
-  if (!product) return <div style={{ marginTop: 120, textAlign: 'center' }}>Car not found</div>;
+  if (!product)
+    return (
+      <div style={{ marginTop: 150, textAlign: "center" }}>
+        Product not found
+      </div>
+    );
 
-  const { name = '', brand = '', modelYear = '', dailyRentalRate = 0, category = '', fuelType = '', seatingCapacity = 0, availableLocation = '', description = '' } = product;
-
+  const {
+    name,
+    brand,
+    modelYear,
+    dailyRentalRate,
+    category,
+    fuelType,
+    seatingCapacity,
+    availableLocation,
+    description,
+  } = product;
+  // -------------------------
+  // UI RETURN
+  // -------------------------
   return (
-    <div className="containers">
-      <div className="left-column">
-        <img src={imageUrl} alt={name} className="product-detail-img" onError={handleImageError} />
-        <div className="product-detail-actions">
-          <h3>₹{dailyRentalRate} <span>/ day</span></h3>
-          <div className="product-detail-buttons">
-            <button className="btn btn-primary" onClick={handleAddToCart}>Book Now</button>
-            <button className="btn btn-primary" onClick={handleUpdate}>Update</button>
-            <button className="btn btn-primary" onClick={handleDelete}>Delete</button>
-          </div>
+    <div className="product-container">
+
+      {/* LEFT SIDE */}
+      <div className="product-left">
+        <img
+          src={imageUrl}
+          alt={name}
+          className="product-img"
+          onError={handleImageError}
+        />
+
+        <h3 className="price">
+          ₹{dailyRentalRate} <span>/ day</span>
+        </h3>
+
+        <div className="button-group">
+          {!isAdmin && (
+            <button
+              className="btn primary"
+              onClick={() => addToCart(product)} // FIXED
+            >
+              Book Now
+            </button>
+          )}
+          {isAdmin && ownsProduct && (
+            <button
+              className="btn outline"
+              onClick={() => navigate("/admin/dashboard")}
+            >
+              Manage in Dashboard
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="right-column">
-        <div className="product-description" style={{ marginBottom: 40 }}>
-          <h5 style={{ fontSize: '1.4rem' }}>~ {brand} ({modelYear})</h5>
-          <h2 style={{ fontSize: '2.8rem', fontWeight: 800 }}>{String(name).toUpperCase()}</h2>
+      {/* RIGHT SIDE */}
+      <div className="product-right">
+        <h2 className="title">
+          {brand} ({modelYear})
+        </h2>
+        <h1 className="car-name">{name}</h1>
+
+        <h3 className="section-title">Key Specifications</h3>
+
+        <div className="spec-box">
+          <p><strong>Category:</strong> {category}</p>
+          <p><strong>Model Year:</strong> {modelYear}</p>
+          <p><strong>Fuel Type:</strong> {fuelType}</p>
+          <p><strong>Seating Capacity:</strong> {seatingCapacity}</p>
+          <p><strong>Available Location:</strong> {availableLocation}</p>
         </div>
 
-        <h3 className="product-description-heading">Key Specifications</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 40px', marginBottom: 40, fontSize: '1.2rem' }}>
-          <div><strong>Category:</strong> {category}</div>
-          <div><strong>Model Year:</strong> {modelYear}</div>
-          <div><strong>Fuel Type:</strong> {fuelType}</div>
-          <div><strong>Seating Capacity:</strong> {seatingCapacity} seats</div>
-          <div><strong>Available Location:</strong> {availableLocation}</div>
-          <div style={{ opacity: 0 }}></div>
-        </div>
-
-        <h3 className="product-description-heading">Car Description</h3>
-        <p style={{ fontSize: '1.2rem', lineHeight: '1.8', whiteSpace: 'pre-wrap' }}>
-          {description || 'No detailed description was provided for this car.'}
-        </p>
+        <h3 className="section-title">Description</h3>
+        <p className="description-text">{description}</p>
       </div>
     </div>
   );

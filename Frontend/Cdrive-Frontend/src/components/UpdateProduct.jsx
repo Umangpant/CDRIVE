@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import API from "../axios.jsx";
+import AppContext from "../Context/Context";
 
 const UpdateProduct = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { refreshData } = useContext(AppContext);
 
   const [product, setProduct] = useState({
     name: "",
@@ -89,7 +91,9 @@ const UpdateProduct = () => {
     setSaving(true);
     try {
       const formData = new FormData();
-      if (imageFile) formData.append("imageFile", imageFile); // matches controller param
+      if (imageFile) {
+        formData.append("imageFile", imageFile);
+      }
       const productBlob = new Blob([JSON.stringify(product)], { type: "application/json" });
       formData.append("product", productBlob);
 
@@ -98,8 +102,12 @@ const UpdateProduct = () => {
 
       // refresh preview cache-buster
       setImageTs(Date.now());
+      // refresh list data so Home updates immediately after navigation
+      if (refreshData) {
+        await refreshData({ silent: true });
+      }
       alert("Product updated");
-      navigate("/"); // or stay and refetch if you prefer
+      navigate("/admin/dashboard");
     } catch (err) {
       console.error("update error", err);
       const msg = err?.response?.data ? (typeof err.response.data === "string" ? err.response.data : JSON.stringify(err.response.data)) : err.message;
@@ -114,9 +122,18 @@ const UpdateProduct = () => {
 
   if (loading) return <div style={{ padding: 40 }}>Loading...</div>;
 
+
   return (
     <div className="add-product-wrapper">
       <div className="custom-form-card">
+        <button
+          type="button"
+          className="close-add-car"
+          aria-label="Close update form"
+          onClick={() => navigate("/admin/dashboard")}
+        >
+          ×
+        </button>
         <form className="add-product-form" onSubmit={handleSubmit} noValidate>
           <h2 style={{ textAlign: "center", marginBottom: 16 }}>Update Car</h2>
           <div className="form-grid">

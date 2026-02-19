@@ -1,8 +1,43 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, Button } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import API from '../axios.jsx';
 
-const CheckoutPopup = ({ show, handleClose, cartItems = [], totalPrice = 0, handleCheckout }) => {
+const CheckoutPopup = ({
+  show,
+  handleClose,
+  cartItems = [],
+  totalPrice = 0,
+  handleCheckout,
+  isAuthenticated
+}) => {
+  const navigate = useNavigate();
+  const [preferredDate, setPreferredDate] = useState("");
+  const [preferredTime, setPreferredTime] = useState("");
+
+  useEffect(() => {
+    if (show) {
+      setPreferredDate("");
+      setPreferredTime("");
+    }
+  }, [show]);
+
+  const handleBookingClick = () => {
+    const hasLocalUser = Boolean(localStorage.getItem('user')) || localStorage.getItem('isLoggedIn') === 'true';
+    const allowed = typeof isAuthenticated === 'boolean' ? isAuthenticated : hasLocalUser;
+    if (!allowed) {
+      // Redirect to login if not authenticated
+      navigate('/login');
+      return;
+    }
+    if (!preferredDate || !preferredTime) {
+      alert("Please select preferred date and time.");
+      return;
+    }
+    // Proceed with checkout if authenticated
+    handleCheckout({ preferredDate, preferredTime });
+  };
+
   // Normalize item -> product object and build image URL with fallbacks
   const buildProduct = (item) => {
     // item might be a product, or { product, quantity } or cart entry shape
@@ -91,6 +126,28 @@ const CheckoutPopup = ({ show, handleClose, cartItems = [], totalPrice = 0, hand
               })
             )}
 
+            <div className="booking-preferences">
+              <div className="booking-pref-item">
+                <label htmlFor="preferred-date">Preferred Date</label>
+                <input
+                  id="preferred-date"
+                  type="date"
+                  value={preferredDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setPreferredDate(e.target.value)}
+                />
+              </div>
+              <div className="booking-pref-item">
+                <label htmlFor="preferred-time">Preferred Time</label>
+                <input
+                  id="preferred-time"
+                  type="time"
+                  value={preferredTime}
+                  onChange={(e) => setPreferredTime(e.target.value)}
+                />
+              </div>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 18 }}>Total Rental Cost:</div>
               <div style={{ fontWeight: 800, fontSize: 20 }}>₹{(totalPrice || 0).toFixed(2)}</div>
@@ -100,7 +157,7 @@ const CheckoutPopup = ({ show, handleClose, cartItems = [], totalPrice = 0, hand
 
         <Modal.Footer>
           <Button variant="secondary" onClick={handleClose}>Close</Button>
-          <Button variant="primary" onClick={handleCheckout} disabled={(cartItems||[]).length===0}>Confirm Booking</Button>
+          <Button variant="primary" onClick={handleBookingClick} disabled={(cartItems||[]).length===0}>Confirm Booking</Button>
         </Modal.Footer>
       </Modal>
     </div>

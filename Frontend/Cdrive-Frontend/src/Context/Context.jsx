@@ -1,104 +1,254 @@
-// src/Context/Context.jsx (FIXED)
-
 import React, { createContext, useEffect, useState } from "react";
 import API from "../axios.jsx";
 
-const AppContext = createContext({
-  data: [],
-  isError: "",
-  cart: [],
-  loading: true,
-  currentCategory: "All",
-  setCurrentCategory: () => {},
-  searchQuery: "",
-  setSearchQuery: () => {},
-  currentLocation: "",
-  setCurrentLocation: () => {},
-  addToCart: () => {},
-  removeFromCart: () => {},
-  updateQuantity: () => {},
-  getTotalCartItems: () => 0,
-  getTotalRentalCost: () => 0,
-  refreshData: () => {},
-  clearCart: () => {},
-  addNewCarToData: () => {}, // <-- NEW: Add to the context definition
-  removeCarFromData: () => {}, // <-- NEW
-});
+const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
-  const [data, setData] = useState([]);
-  const [isError, setIsError] = useState("");
-  const [cart, setCart] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("cart")) || []; } catch { return []; }
-  });
-  const [loading, setLoading] = useState(true);
+  // ================= DATA =================
+  const [data, setData] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem("products_cache") || "null");
+      return Array.isArray(cached?.items) ? cached.items : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem("products_cache") || "null");
+      return !Array.isArray(cached?.items) || cached.items.length === 0;
+    } catch {
+      return true;
+    }
+  });
+  const [isError, setIsError] = useState("");
 
-  // new global filters
-  const [currentCategory, setCurrentCategory] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentLocation, setCurrentLocation] = useState("");
+  // ================= CART =================
+  const [cart, setCart] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("cart")) || [];
+    } catch {
+      return [];
+    }
+  });
 
-  const addToCart = (product) => {
-    const idx = cart.findIndex(c => c.id === product.id);
-    if (idx !== -1) setCart(cart.map((c,i) => i===idx ? { ...c, quantity: (c.quantity||1)+1 } : c));
-    else setCart([...cart, { ...product, quantity: 1 }]);
-  };
-  const removeFromCart = (id) => setCart(cart.filter(c => c.id !== id));
-  const updateQuantity = (id, q) => setCart(cart.map(c => c.id===id ? { ...c, quantity: Math.max(1, parseInt(q)||1) } : c));
-  const clearCart = () => { setCart([]); localStorage.removeItem("cart"); };
-  const getTotalCartItems = () => cart.length;
-  const getTotalRentalCost = () => cart.reduce((s,i) => s + Number(i.dailyRentalRate||0) * Number(i.quantity||1), 0);
+  // ================= FILTERS =================
+  const [currentCategory, setCurrentCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentLocation, setCurrentLocation] = useState("");
 
-    // === FIX 1: New function to instantly update the car list state ===
-    const addNewCarToData = (newCar) => {
-        if (!newCar) return;
-        setData(prevData => {
-            // Add the new car to the beginning of the list 
-            return [newCar, ...prevData]; 
-        });
-    };
+  // ================= AUTH (SINGLE SOURCE OF TRUTH) =================
+  const [auth, setAuth] = useState(null);
+  const [loginPrompt, setLoginPrompt] = useState({
+    open: false,
+    message: "",
+    key: 0,
+  });
 
-  const removeCarFromData = (id) => {
-      if (!id) return;
-      setData(prevData => prevData.filter(car => car.id !== id && car._id !== id && car.productId !== id));
+
+  const normalizeRole = (value) => {
+    const raw = (value ?? "").toString().trim();
+    if (!raw) return "";
+    const lowered = raw.toLowerCase();
+    if (lowered === "undefined" || lowered === "null") return "";
+    return lowered.replace(/^role_/, "");
   };
-  // -----------------------------------------------------------------
 
-  const fetchProducts = async () => {
-    setLoading(true);
+  //  Restore auth on refresh
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      const storedRole =
+        localStorage.getItem("role") ||
+        user?.role ||
+        user?.Role ||
+        user?.userRole ||
+        "";
+      const role = normalizeRole(storedRole);
+      if (user && role) {
+        if (localStorage.getItem("role") !== role) {
+          localStorage.setItem("role", role);
+        }
+        setAuth({ user, role });
+      }
+    } catch {}
+  }, []);
+
+  const logout = () => {
+    localStorage.clear();
+    setAuth(null);
+  };
+
+  // ================= PRODUCTS =================
+  const fetchProducts = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await API.get("/products");
-      const arr = Array.isArray(res.data) ? res.data : res.data?.products || [];
-      console.log("[Context] fetched products:", arr.length, "sample:", arr[0]);
-      setData(arr);
+      const items = Array.isArray(res.data) ? res.data : [];
+      setData(items);
+      try {
+        localStorage.setItem(
+          "products_cache",
+          JSON.stringify({ items, ts: Date.now() })
+        );
+      } catch {}
       setIsError("");
     } catch (err) {
-      console.error("[Context] fetchProducts ERROR:", err?.response || err);
-      setIsError(err?.message || "Fetch failed");
-      setData([]);
-    } finally { setLoading(false); }
+      setIsError("Failed to fetch products");
+      if (!silent) setData([]);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => {
+    const cached = (() => {
+      try {
+        return JSON.parse(localStorage.getItem("products_cache") || "null");
+      } catch {
+        return null;
+      }
+    })();
 
-  useEffect(() => { try { localStorage.setItem("cart", JSON.stringify(cart)); } catch {} }, [cart]);
+    const hasCache = Array.isArray(cached?.items) && cached.items.length > 0;
+    fetchProducts({ silent: hasCache });
+  }, []);
 
-  return (
-    <AppContext.Provider value={{
-      data, isError, cart, loading,
-      currentCategory, setCurrentCategory,
-      searchQuery, setSearchQuery,
-      currentLocation, setCurrentLocation,
-      addToCart, removeFromCart, updateQuantity,
-      getTotalCartItems, getTotalRentalCost,
-      refreshData: fetchProducts, 
-      clearCart,
-      addNewCarToData, // <-- FIX 2: Expose the new function
-      removeCarFromData, // <-- NEW
-    }}>
-      {children}
-    </AppContext.Provider>
-  );
+  // ================= CART HELPERS =================
+  const resolveProductId = (item) =>
+    item?.id ?? item?._id ?? item?.productId ?? null;
+
+  const normalizeProduct = (product) => {
+    if (!product || typeof product !== "object") return product;
+    const id = resolveProductId(product);
+    if (id && product.id !== id) {
+      return { ...product, id };
+    }
+    return product;
+  };
+
+  const normalizeId = (value) =>
+    value == null ? null : String(value);
+
+  const removeCarFromData = (id) => {
+    const targetId = normalizeId(id);
+    setData((prev) => {
+      const next = (prev || []).filter(
+        (item) => normalizeId(resolveProductId(item)) !== targetId
+      );
+      try {
+        localStorage.setItem(
+          "products_cache",
+          JSON.stringify({ items: next, ts: Date.now() })
+        );
+      } catch {}
+      return next;
+    });
+  };
+
+  const addToCart = (product) => {
+    const hasToken = Boolean(localStorage.getItem("token"));
+    const isLoggedIn = Boolean(auth?.user && hasToken);
+    if (!isLoggedIn) {
+      setLoginPrompt({
+        open: true,
+        message: "Please login first before booking or renting.",
+        key: Date.now(),
+      });
+      return;
+    }
+    const normalized = normalizeProduct(product);
+    const id = resolveProductId(normalized);
+
+    setCart((prev) => {
+      if (!id) {
+        return [...prev, { ...normalized, quantity: 1 }];
+      }
+
+      const idx = prev.findIndex((c) => resolveProductId(c) === id);
+      if (idx !== -1) {
+        return prev.map((c, i) =>
+          i === idx ? { ...c, quantity: (c.quantity || 1) + 1 } : c
+        );
+      }
+      return [...prev, { ...normalized, id, quantity: 1 }];
+    });
+  };
+
+  const removeFromCart = (id) =>
+    setCart((prev) => prev.filter((c) => resolveProductId(c) !== id));
+
+  const updateQuantity = (id, value) => {
+    const next = Number(value);
+    const safeValue =
+      Number.isFinite(next) && next > 0 ? Math.floor(next) : 1;
+
+    setCart((prev) =>
+      prev.map((item) =>
+        resolveProductId(item) === id
+          ? { ...item, quantity: safeValue }
+          : item
+      )
+    );
+  };
+
+  const getTotalRentalCost = () => {
+    return (cart || []).reduce((sum, item) => {
+      const qty = Number(item.quantity || 1);
+      const daily = Number(
+        item.dailyRentalRate ??
+          item.daily_rental_rate ??
+          item.dailyRate ??
+          0
+      );
+      if (!Number.isFinite(qty) || !Number.isFinite(daily)) return sum;
+      return sum + daily * Math.max(qty, 1);
+    }, 0);
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    localStorage.removeItem("cart");
+  };
+
+  useEffect(() => {
+    localStorage.setItem("cart", JSON.stringify(cart));
+  }, [cart]);
+
+  const hideLoginPrompt = () => {
+    setLoginPrompt((prev) => ({ ...prev, open: false }));
+  };
+
+  return (
+    <AppContext.Provider
+      value={{
+        data,
+        loading,
+        isError,
+        cart,
+        addToCart,
+        removeFromCart,
+        updateQuantity,
+        getTotalRentalCost,
+        clearCart,
+        currentCategory,
+        setCurrentCategory,
+        searchQuery,
+        setSearchQuery,
+        currentLocation,
+        setCurrentLocation,
+        auth,
+        setAuth,
+        logout,
+        refreshData: fetchProducts,
+        removeCarFromData,
+        loginPrompt,
+        hideLoginPrompt,
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
 };
 
 export default AppContext;

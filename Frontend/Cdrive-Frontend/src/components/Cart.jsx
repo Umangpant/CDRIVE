@@ -1,18 +1,28 @@
 import React, { useContext, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppContext from '../Context/Context';
 import CheckoutPopup from './CheckoutPopup';
-import { Button } from 'react-bootstrap';
+import { Modal, Button } from 'react-bootstrap';
 import API from '../axios.jsx';
 
 const Cart = () => {
+    const navigate = useNavigate();
     const { 
         cart, 
         removeFromCart,
         updateQuantity, 
-        getTotalRentalCost 
+        getTotalRentalCost,
+        auth,
+        clearCart
     } = useContext(AppContext);
 
     const [showModal, setShowModal] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [successDetails, setSuccessDetails] = useState({
+        name: '',
+        email: '',
+        locations: ''
+    });
 
     // Robust image URL helper (use axios baseURL when available)
     const getImageUrl = (item) => {
@@ -55,26 +65,142 @@ const Cart = () => {
         setShowModal(true);
     };
 
+    const getPickupLocations = (items) => {
+        const locations = new Set();
+        (items || []).forEach((item) => {
+            const location =
+                item?.availableLocation ||
+                item?.available_location ||
+                item?.AvailableLocation ||
+                '';
+            if (location) locations.add(location);
+        });
+        return locations.size > 0 ? Array.from(locations).join(', ') : 'N/A';
+    };
+
+    const buildBookingPayload = (item, preferences = {}) => {
+        const product = item?.product ?? item ?? {};
+        const productId = product.id ?? product._id ?? product.productId ?? null;
+        const numberOfDays = Math.max(1, Number(item.quantity ?? item.days ?? 1));
+        const daily = Number(
+            product.dailyRentalRate ??
+            product.daily_rental_rate ??
+            product.dailyRate ??
+            0
+        );
+        const totalPrice = Math.max(0, daily * numberOfDays);
+        const userName = auth?.user?.name || auth?.user?.username || '';
+        const userEmail =
+            auth?.user?.email ||
+            auth?.user?.mail ||
+            auth?.user?.username ||
+            '';
+        const bookingDate = new Date().toISOString().slice(0, 10); // LocalDate (YYYY-MM-DD)
+        const preferredDate = preferences.preferredDate || "";
+        const preferredTime = preferences.preferredTime || "";
+
+        return {
+            productId,
+            numberOfDays,
+            totalPrice,
+            userName,
+            userEmail,
+            bookingDate,
+            preferredDate,
+            preferredTime,
+        };
+    };
+
+    const postBooking = async (payload) => {
+        const rootBase = API?.defaults?.baseURL
+            ? API.defaults.baseURL.replace(/\/api\/?$/, "")
+            : "";
+        const tryPost = (path, baseOverride) =>
+            API.post(path, payload, baseOverride ? { baseURL: baseOverride } : undefined);
+
+        try {
+            return await tryPost('/bookings');
+        } catch (err1) {
+            if (err1?.response?.status !== 404) throw err1;
+            try {
+                return await tryPost('/booking');
+            } catch (err2) {
+                if (err2?.response?.status !== 404 || !rootBase) throw err2;
+                try {
+                    return await tryPost('/bookings', rootBase);
+                } catch (err3) {
+                    if (err3?.response?.status !== 404) throw err3;
+                    return tryPost('/booking', rootBase);
+                }
+            }
+        }
+    };
+
+    const handleBookingConfirmed = async (preferences = {}) => {
+        const name = auth?.user?.name || 'there';
+        const email =
+            auth?.user?.email ||
+            auth?.user?.mail ||
+            auth?.user?.username ||
+            '';
+        const locations = getPickupLocations(cart);
+
+        try {
+            const payloads = (cart || [])
+                .map((item) => buildBookingPayload(item, preferences))
+                .filter((p) => p.productId != null);
+            if (payloads.length === 0) {
+                alert("Booking failed: missing product info.");
+                return;
+            }
+            await Promise.all(payloads.map(postBooking));
+            localStorage.setItem("booking_ping", Date.now().toString());
+
+            setSuccessDetails({ name, email, locations });
+            setShowModal(false);
+            setShowSuccess(true);
+            clearCart();
+        } catch (err) {
+            console.error("Booking API error:", err);
+            const msg =
+                err?.response?.data
+                    ? (typeof err.response.data === "string" ? err.response.data : JSON.stringify(err.response.data))
+                    : err.message || "Booking failed";
+            alert("Booking failed: " + msg);
+        }
+    };
+
+    const handleSuccessDone = () => {
+        setShowSuccess(false);
+        navigate('/');
+    };
+
     const totalCost = getTotalRentalCost() || 0;
 
     return (
         <div className="cart-page-container" style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
             <h2>Your Booking List</h2>
-            
+
             {!cart || cart.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.5rem', color: '#666' }}>
                     Your rental cart is empty. Add a car to start a booking.
                 </div>
             ) : (
                 <div className="cart-items-list">
-                    {cart.map((item) => {
+                    {cart.map((item, index) => {
                         const days = Number(item.quantity || 1);
-                        const dailyRate = Number(item.dailyRentalRate || item.dailyRentalRate || 0);
+                        const dailyRate = Number(
+                            item.dailyRentalRate ??
+                            item.daily_rental_rate ??
+                            item.dailyRate ??
+                            0
+                        );
                         const lineTotal = dailyRate * days;
                         const pickup = item.availableLocation || item.available_location || item.AvailableLocation || 'N/A';
+                        const itemId = item.id ?? item._id ?? item.productId ?? index;
 
                         return (
-                            <div key={item.id} className="cart-item-row" style={{
+                            <div key={itemId} className="cart-item-row" style={{
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
@@ -103,7 +229,7 @@ const Cart = () => {
                                         type="number" 
                                         value={days} 
                                         min="1" 
-                                        onChange={(e) => handleQuantityChange(item.id, e)}
+                                        onChange={(e) => handleQuantityChange(itemId, e)}
                                         style={{ width: '60px', textAlign: 'center', padding: '5px' }} 
                                     />
                                 </div>
@@ -113,7 +239,7 @@ const Cart = () => {
                                 </div>
 
                                 <div className="item-delete-col" style={{ textAlign: 'center', minWidth: '50px' }}>
-                                    <button onClick={() => removeFromCart(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'red', fontSize: '1.5rem' }}>
+                                    <button onClick={() => removeFromCart(itemId)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'red', fontSize: '1.5rem' }}>
                                         🗑️
                                     </button>
                                 </div>
@@ -139,11 +265,36 @@ const Cart = () => {
                 handleClose={() => setShowModal(false)}
                 cartItems={cart}
                 totalPrice={totalCost}
-                handleCheckout={() => {
-                    alert("Booking confirmed! (Actual checkout logic goes here)");
-                    setShowModal(false);
-                }}
+                isAuthenticated={Boolean(auth)}
+                handleCheckout={handleBookingConfirmed}
             />
+
+            <Modal show={showSuccess} onHide={() => setShowSuccess(false)} centered>
+                <Modal.Header closeButton>
+                    <Modal.Title>Congratulations! 🎉</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <div style={{ textAlign: 'center', padding: '10px 8px 4px' }}>
+                        <div style={{ fontSize: '3rem', marginBottom: '8px' }}>✅</div>
+                        <h4 style={{ marginBottom: '8px' }}>You are booked!</h4>
+                        <p style={{ margin: '0 0 6px', color: '#555' }}>
+                            The car owner will contact you shortly
+                            {successDetails.email ? ` at ${successDetails.email}` : ' by email'}.
+                        </p>
+                        <p style={{ margin: '0 0 10px', color: '#555' }}>
+                            Pickup location: <strong>{successDetails.locations || 'N/A'}</strong>
+                        </p>
+                        <p style={{ margin: 0, color: '#333' }}>
+                            Thank you{successDetails.name ? `, ${successDetails.name}` : ''}! 🚗✨
+                        </p>
+                    </div>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button variant="primary" onClick={handleSuccessDone}>
+                        Done
+                    </Button>
+                </Modal.Footer>
+            </Modal>
         </div>
     );
 };

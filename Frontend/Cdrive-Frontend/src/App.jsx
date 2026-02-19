@@ -1,52 +1,63 @@
-// src/App.jsx (Ensure you are using this version)
-
-import React, { useContext, useEffect } from "react";
+import React from "react";
 import { Routes, Route } from "react-router-dom";
-import AppContext from "./Context/Context.jsx";
 
-// Import components
-import Navbar from "./components/Navbar.jsx";
-import Home from "./components/Home.jsx";
-import Product from "./components/Product.jsx";
-import AddProduct from "./components/AddProduct.jsx";
-import UpdateProduct from "./components/UpdateProduct.jsx";
-import Cart from "./components/Cart.jsx";
-import Footer from "./components/Footer.jsx";
+import Navbar from "./components/Navbar";
+import Home from "./components/Home";
+import Product from "./components/Product";
+import Cart from "./components/Cart";
+import Login from "./pages/login";
+import Register from "./pages/Register";
+import AddProduct from "./components/AddProduct";
+import UpdateProduct from "./components/UpdateProduct";
+import ProtectedRoute from "./utils/ProtectedRoute";
+import AdminDashboard from "./admin/AdminDashboard";
+import LoginPromptToast from "./components/LoginPromptToast";
+import AppContext from "./Context/Context";
 
 function App() {
-  const ctx = useContext(AppContext);
+  const { loginPrompt, hideLoginPrompt } = React.useContext(AppContext);
+  return (
+    <>
+      <Navbar />
+      <LoginPromptToast prompt={loginPrompt} onClose={hideLoginPrompt} />
 
-    // Get 'refreshData' (which fetches the full list again)
-    const { refreshData } = ctx;
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/product/:id" element={<Product />} />
+        <Route path="/cart" element={<Cart />} />
 
-  useEffect(() => {
-    console.log(
-      "[App] context snapshot:",
-      { loading: ctx?.loading, dataLength: Array.isArray(ctx?.data) ? ctx.data.length : typeof ctx?.data }
-    );
-  }, [ctx?.loading, ctx?.data]);
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
-  return (
-    <div className="App">
-      <Navbar />
-      <div className="content">
-        <Routes>
-          <Route path="/" element={ <Home /> } />
-          <Route path="/product/:id" element={<Product />} />
-          
-            {/* Pass 'refreshData' as the onCarAdded prop */}
-          <Route 
-                path="/add_product" 
-                element={<AddProduct onCarAdded={refreshData} />} 
-            />
-            
-          <Route path="/update-product/:id" element={<UpdateProduct />} />
-          <Route path="/cart" element={<Cart />} />
-        </Routes>
-      </div>
-      <Footer />
-    </div>
-  );
+        <Route
+          path="/add-product"
+          element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AddProduct />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/update-product/:id"
+          element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <UpdateProduct />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute requiredRole="ADMIN">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </>
+  );
 }
 
 export default App;

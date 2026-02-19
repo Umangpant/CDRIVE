@@ -1,173 +1,180 @@
-// src/components/Navbar.jsx
-
-import React, { useContext, useEffect, useRef, useState } from "react";
-import AppContext from "../Context/Context.jsx";
-import { Link } from "react-router-dom";
-import "../App.css";
-
-const CAR_CATEGORIES = ["All", "Sedan", "SUV", "Hatchback", "Luxury"];
+import React, { useContext, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import AppContext from "../Context/Context";
 
 const Navbar = () => {
-  const { cart = [], setCurrentCategory, setCurrentLocation } = useContext(AppContext || {});
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchVal, setSearchVal] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const dropdownRef = useRef(null);
-  const debounceTimer = useRef(null);
+  const {
+    cart = [],
+    auth,
+    logout,
+    setCurrentLocation,
+    data = [],
+    currentCategory,
+    setCurrentCategory,
+  } = useContext(AppContext);
+  const navigate = useNavigate();
+  const [isDark, setIsDark] = useState(
+    () => localStorage.getItem("theme") === "dark"
+  );
+
+  const role = (auth?.role || auth?.user?.role || "").toLowerCase();
+  const showCategoryFilter = role === "user" || role === "customer";
+  const showAddCar = role === "admin";
+  const showAdminDashboard = role === "admin";
+  const showBookingList = role !== "admin";
+
+  const categoryOptions = (() => {
+    const defaults = ["Sedan", "SUV", "Hatchback", "Luxury"];
+    const map = new Map();
+
+    defaults.forEach((label) => {
+      map.set(label.toLowerCase(), label);
+    });
+
+    (Array.isArray(data) ? data : []).forEach((item) => {
+      const raw =
+        item?.category ?? item?.categoryName ?? item?.category_type ?? "";
+      const label = raw.toString().trim();
+      if (!label) return;
+      const key = label.toLowerCase();
+      if (!map.has(key)) map.set(key, label);
+    });
+
+    const sorted = Array.from(map.values()).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    return ["All", ...sorted.filter((c) => c.toLowerCase() !== "all")];
+  })();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
 
   useEffect(() => {
-    function handleClickOutside(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.body.classList.toggle("dark-theme", isDark);
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  }, [isDark]);
 
-  // Debounce searchVal => setCurrentLocation to allow live filtering
-  useEffect(() => {
-    // clear previous timer
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-
-    // if empty, clear location filter immediately
-    if (!searchVal || !searchVal.trim()) {
-      if (setCurrentLocation) setCurrentLocation("");
-      debounceTimer.current = null;
-      return;
-    }
-
-    debounceTimer.current = setTimeout(() => {
-      const q = searchVal.trim();
-      if (setCurrentLocation) {
-        console.log("[Navbar] apply search location:", q);
-        setCurrentLocation(q);
-      }
-    }, 280);
-
-    return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    };
-  }, [searchVal, setCurrentLocation]);
-
-  const toggleSearch = () => {
-    setSearchOpen((s) => !s);
-  };
-
-  const submitSearch = (e) => {
-    if (e) e.preventDefault();
-    const q = (searchVal || "").trim();
-    if (setCurrentLocation) {
-      console.log("[Navbar] submit search location:", q);
-      setCurrentLocation(q);
-    }
-    setSearchOpen(false);
-  };
-
-  const selectCategory = (cat) => {
-    setSelectedCategory(cat);
-    const payload = cat === "All" ? "" : cat;
-    if (setCurrentCategory) {
-      console.log("[Navbar] select category:", payload);
-      setCurrentCategory(payload);
-    }
-    // clear location when category changes (keeps behavior consistent)
-    if (setCurrentLocation) setCurrentLocation("");
-    setDropdownOpen(false);
-  };
-
-  const clearFilters = () => {
-    setSelectedCategory("All");
-    if (setCurrentCategory) setCurrentCategory("");
-    if (setCurrentLocation) setCurrentLocation("");
-    setSearchVal("");
+  const handleThemeToggle = () => {
+    setIsDark((prev) => !prev);
   };
 
   return (
-    <header className="navbar app-navbar" role="banner">
-      <div className="nav-inner">
-        <Link to="/" className="brand" onClick={clearFilters} aria-label="Home">
-          <i className="bi bi-car-front-fill brand-icon" aria-hidden="true" />
-          <span>CDRIVE</span>
-        </Link>
-
-        <nav className="nav-links" aria-label="Main navigation">
-          <div className="nav-left">
-            <Link to="/" onClick={() => { clearFilters(); }}>
-              Available Cars
-            </Link>
-
-            <div
-              className={`dropdown ${dropdownOpen ? "open" : ""}`}
-              ref={dropdownRef}
-              onClick={() => setDropdownOpen((s) => !s)}
+    <header className="navbar-root">
+      <div className="navbar-container">
+        {/* LEFT */}
+        <div className="navbar-left">
+          <Link to="/" className="navbar-brand">
+            <svg
+              className="brand-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
             >
-              <span className="dropdown-label" style={{ cursor: "pointer" }}>
-                Car Category ▾
-              </span>
+              <path d="M4 9a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" />
+              <path d="M12 9a1 1 0 1 0 0 2 1 1 0 0 0 0-2z" />
+              <path d="M4.5 2a.5.5 0 0 0-.45.29L2.2 6H1.5A1.5 1.5 0 0 0 0 7.5V11a1 1 0 0 0 1 1h1a2 2 0 0 0 4 0h4a2 2 0 0 0 4 0h1a1 1 0 0 0 1-1V7.5A1.5 1.5 0 0 0 14.5 6h-.7l-1.85-3.71A.5.5 0 0 0 11.5 2h-7zM3.62 6 4.72 3.5h6.56L12.38 6H3.62z" />
+            </svg>
+            <span>CDRIVE</span>
+          </Link>
 
-              <ul className="dropdown-menu">
-                {CAR_CATEGORIES.map((c) => (
-                  <li key={c} style={{ listStyle: "none" }}>
-                    <button
-                      className="dropdown-item"
-                      onClick={() => selectCategory(c)}
-                    >
-                      {c}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <Link to="/" className="nav-link nav-link-home">
+            Available Cars
+          </Link>
 
-            <Link to="/add_product">Add Car (Admin)</Link>
-          </div>
-
-          <div className="nav-right">
-            <div className={`search-container ${searchOpen ? "open" : ""}`} style={{ position: "relative" }}>
-              <button
-                className="icon-btn search-btn"
-                title="Search"
-                onClick={toggleSearch}
-                aria-expanded={searchOpen}
+          {showCategoryFilter && (
+            <div className="category-filter">
+              <label htmlFor="categorySelect" className="category-label">
+                Car Category
+              </label>
+              <select
+                id="categorySelect"
+                className="category-select"
+                aria-label="Car Category"
+                value={currentCategory || "All"}
+                onChange={(e) => setCurrentCategory(e.target.value)}
               >
-                <i className="bi bi-search" />
-              </button>
-
-              <form className="search-input-wrapper" onSubmit={submitSearch} style={{ right: 48 }}>
-                <input
-                  type="search"
-                  placeholder="Location (city, area)..."   /* explicit placeholder requested */
-                  value={searchVal}
-                  onChange={(e) => setSearchVal(e.target.value)}
-                  autoFocus={searchOpen}
-                  aria-label="Search location"
-                />
-                <button type="submit" style={{ display: "none" }}>Go</button>
-              </form>
+                {categoryOptions.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
             </div>
+          )}
 
-            <button aria-label="Toggle theme" className="icon-btn theme-btn" onClick={() => {
-              const isDark = document.body.classList.toggle("dark-theme");
-              localStorage.setItem("theme", isDark ? "dark" : "light");
-            }}>
-              <i className="bi bi-sun" />
-            </button>
-
-            <Link to="/cart" className="btn-booking">
-              <i className="bi bi-calendar-check-fill" style={{ marginRight: 8 }} />
-              Booking List
-              {Array.isArray(cart) && cart.length > 0 && (
-                <span className="badge-count" aria-live="polite" style={{ marginLeft: 8 }}>{cart.length}</span>
-              )}
+          {showAddCar && (
+            <Link to="/add-product" className="admin-add-btn">
+              {"\u2795"} <span className="admin-add-label">Add Car</span>
             </Link>
-          </div>
-        </nav>
+          )}
+
+          {showAdminDashboard && (
+            <Link to="/admin/dashboard" className="admin-add-btn">
+              Dashboard
+            </Link>
+          )}
+
+          {!auth && (
+            <>
+              <Link to="/login">Login</Link>
+              <Link to="/register">Register</Link>
+            </>
+          )}
+        </div>
+
+        {/* CENTER SEARCH */}
+        <div className="navbar-search">
+          <input
+            type="text"
+            placeholder="Search city (e.g. Mumbai)"
+            onChange={(e) => setCurrentLocation(e.target.value)}
+          />
+        </div>
+
+        {/* RIGHT */}
+        <div className="navbar-right">
+          <button
+            className={`theme-toggle ${isDark ? "dark" : "light"}`}
+            title="Toggle theme"
+            onClick={handleThemeToggle}
+          >
+            <span className="theme-toggle__icon" aria-hidden="true">
+              {isDark ? "\uD83C\uDF19" : "\u2600\uFE0F"}
+            </span>
+            <span className="theme-toggle__label">
+              {isDark ? "Dark Mode" : "Light Mode"}
+            </span>
+          </button>
+
+          {auth && (
+            <div className="navbar-user">
+              <img
+                src="https://cdn-icons-png.flaticon.com/512/847/847969.png"
+                alt="user"
+              />
+              <span>Hi, {auth.user?.name}</span>
+            </div>
+          )}
+
+          {auth && (
+            <button className="logout-btn" onClick={handleLogout}>
+              Logout
+            </button>
+          )}
+
+          {showBookingList && (
+            <Link to="/cart" className="booking-btn">
+              {"\uD83D\uDCCB"}{" "}
+              <span className="booking-label">Booking List</span>
+              {cart.length > 0 && <span className="badge">{cart.length}</span>}
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );
 };
 
 export default Navbar;
-
