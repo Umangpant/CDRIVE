@@ -2,6 +2,7 @@ package com.MyProject.Ecomm.service;
 
 import com.MyProject.Ecomm.model.ProductModel;
 import com.MyProject.Ecomm.repo.ProductRepo;
+import com.MyProject.Ecomm.service.BookingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -14,15 +15,22 @@ import java.util.Optional;
 public class ProductService {
 
     private final ProductRepo repo;
+    private final BookingService bookingService;
 
     @Autowired
-    public ProductService(ProductRepo repo) {
+    public ProductService(ProductRepo repo, BookingService bookingService) {
         this.repo = repo;
+        this.bookingService = bookingService;
     }
 
     // 1. Get all products (cars)
     public List<ProductModel> getAllProducts() {
         return repo.findAll();
+    }
+
+    // Admin: Get products by adminId
+    public List<ProductModel> getProductsByAdmin(Integer adminId) {
+        return repo.findByAddedBy(adminId);
     }
 
     // 2. Get product (car) by ID
@@ -93,6 +101,7 @@ public class ProductService {
     // 5. Delete product (car) by ID
     public boolean deleteProduct(int prodId) {
         if (repo.existsById(prodId)) {
+            bookingService.deleteBookingsByProductId(prodId);
             repo.deleteById(prodId);
             return true;
         }

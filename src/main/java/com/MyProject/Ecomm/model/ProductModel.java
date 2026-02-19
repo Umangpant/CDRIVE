@@ -33,6 +33,11 @@ public class ProductModel {
 
     // --- Image Details ---
 
+    // --- Admin Ownership ---
+
+    private Integer addedBy;     // adminId
+    private String addedByEmail; // optional for easier filtering
+
     private String imageName;
     private String imageType;
 

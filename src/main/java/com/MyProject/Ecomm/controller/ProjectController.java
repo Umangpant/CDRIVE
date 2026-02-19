@@ -16,7 +16,6 @@ import java.util.Optional;
 @RequestMapping("/api")
 @CrossOrigin // Prevents CORS issues between frontend and backend
 public class ProjectController {
-
     private final ProductService productService;
 
     @Autowired
@@ -42,8 +41,16 @@ public class ProjectController {
 
     // 3. Add new product (handles both text and image parts)
     @PostMapping("/products")
-    public ResponseEntity<?>  addProduct(@RequestPart ProductModel product, @RequestPart MultipartFile imageFile) {
+    public ResponseEntity<?>  addProduct(@RequestPart ProductModel product,
+                                         @RequestPart MultipartFile imageFile,
+                                         @RequestHeader(value = "X-Admin-Id", required = false) Integer adminIdHeader,
+                                         @RequestHeader(value = "adminId", required = false) Integer adminIdHeaderAlt,
+                                         @RequestParam(value = "adminId", required = false) Integer adminIdParam) {
         try {
+            Integer adminId = adminIdHeader != null ? adminIdHeader : (adminIdHeaderAlt != null ? adminIdHeaderAlt : adminIdParam);
+            if (adminId != null) {
+                product.setAddedBy(adminId);
+            }
             ProductModel product1 = productService.addOrUpdateProduct(product, imageFile);
             return new ResponseEntity<>(product1, HttpStatus.CREATED);
         } catch (Exception e) {
@@ -62,14 +69,16 @@ public class ProjectController {
     }
     //alternate mapping for prouct req
 
-   @GetMapping("/product/{productId}/image")
-   public ResponseEntity<byte[]> getImageByProductIdAlt(@PathVariable int productId) {
-       return getImageByProductId(productId);
-   }
+    @GetMapping("/product/{productId}/image")
+    public ResponseEntity<byte[]> getImageByProductIdAlt(@PathVariable int productId) {
+        return getImageByProductId(productId);
+    }
     // 5. Update product by ID
     @PutMapping("/products/{id}")
     public ResponseEntity<String>
-    updateProduct(@PathVariable int id, @RequestPart ProductModel product, @RequestPart MultipartFile imageFile) {
+    updateProduct(@PathVariable int id,
+                  @RequestPart ProductModel product,
+                  @RequestPart(value = "imageFile", required = false) MultipartFile imageFile) {
 
         ProductModel product1 = null;
         try {

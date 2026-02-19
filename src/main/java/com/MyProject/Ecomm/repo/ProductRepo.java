@@ -10,6 +10,8 @@ import java.util.List;
 @Repository
 public interface ProductRepo extends JpaRepository<ProductModel, Integer> {
 
+    List<ProductModel> findByAddedBy(Integer adminId);
+
     // Custom query to search products by keyword across multiple fields
     @Query("SELECT p FROM ProductModel p WHERE " +
             "LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
