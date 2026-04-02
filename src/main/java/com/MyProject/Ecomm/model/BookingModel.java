@@ -1,5 +1,6 @@
 package com.MyProject.Ecomm.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
@@ -27,6 +28,10 @@ public class BookingModel {
     private LocalDate bookingDate;
     private String preferredDate;
     private String preferredTime;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(20) default 'PENDING'")
+    private ReservationStatus status = ReservationStatus.PENDING;
 
     public Integer getId() {
         return id;
@@ -106,5 +111,39 @@ public class BookingModel {
 
     public void setPreferredTime(String preferredTime) {
         this.preferredTime = preferredTime;
+    }
+
+    public ReservationStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ReservationStatus status) {
+        this.status = status;
+    }
+
+    @Transient
+    @JsonProperty("carName")
+    public String getCarName() {
+        if (product == null) {
+            return null;
+        }
+
+        String brand = product.getBrand();
+        String name = product.getName();
+        String combined = ((brand == null ? "" : brand) + " " + (name == null ? "" : name)).trim();
+        return combined.isEmpty() ? name : combined;
+    }
+
+    @Transient
+    @JsonProperty("pickupLocation")
+    public String getPickupLocation() {
+        return product != null ? product.getAvailableLocation() : null;
+    }
+
+    @PrePersist
+    public void applyDefaults() {
+        if (status == null) {
+            status = ReservationStatus.PENDING;
+        }
     }
 }

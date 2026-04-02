@@ -1,12 +1,16 @@
 package com.MyProject.Ecomm.controller;
+
 import com.MyProject.Ecomm.model.ProductModel;
+import com.MyProject.Ecomm.security.AuthenticatedUserFacade;
 import com.MyProject.Ecomm.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.util.List;
@@ -14,51 +18,45 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin // Prevents CORS issues between frontend and backend
+@CrossOrigin
 public class ProjectController {
     private final ProductService productService;
+    private final AuthenticatedUserFacade authenticatedUserFacade;
 
     @Autowired
-    public ProjectController(ProductService productService) {
+    public ProjectController(ProductService productService,
+                             AuthenticatedUserFacade authenticatedUserFacade) {
         this.productService = productService;
+        this.authenticatedUserFacade = authenticatedUserFacade;
     }
 
-    // 1. Get all products
     @GetMapping("/products")
     public ResponseEntity<List<ProductModel>> getAllProducts() {
         return new ResponseEntity<>(productService.getAllProducts(), HttpStatus.OK);
     }
 
-    // 2. Get product by ID
     @GetMapping("/products/{pathId}")
-    public ResponseEntity<ProductModel>
-    getProductById(@PathVariable int pathId) {
+    public ResponseEntity<ProductModel> getProductById(@PathVariable int pathId) {
         Optional<ProductModel> productOptional = productService.getProductById(pathId);
         return productOptional
                 .map(product -> new ResponseEntity<>(product, HttpStatus.OK))
                 .orElseGet(() -> new ResponseEntity<>(HttpStatus.NOT_FOUND));
     }
 
-    // 3. Add new product (handles both text and image parts)
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/products")
-    public ResponseEntity<?>  addProduct(@RequestPart ProductModel product,
-                                         @RequestPart MultipartFile imageFile,
-                                         @RequestHeader(value = "X-Admin-Id", required = false) Integer adminIdHeader,
-                                         @RequestHeader(value = "adminId", required = false) Integer adminIdHeaderAlt,
-                                         @RequestParam(value = "adminId", required = false) Integer adminIdParam) {
+    public ResponseEntity<?> addProduct(@RequestPart ProductModel product,
+                                        @RequestPart MultipartFile imageFile) {
         try {
-            Integer adminId = adminIdHeader != null ? adminIdHeader : (adminIdHeaderAlt != null ? adminIdHeaderAlt : adminIdParam);
-            if (adminId != null) {
-                product.setAddedBy(adminId);
-            }
-            ProductModel product1 = productService.addOrUpdateProduct(product, imageFile);
-            return new ResponseEntity<>(product1, HttpStatus.CREATED);
+            product.setAddedBy(authenticatedUserFacade.getCurrentUserId());
+            product.setAddedByEmail(authenticatedUserFacade.getCurrentUserEmail());
+
+            ProductModel savedProduct = productService.addOrUpdateProduct(product, imageFile);
+            return new ResponseEntity<>(savedProduct, HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
-    // 4. Get product image by ID
 
     @GetMapping("/products/{productId}/image")
     public ResponseEntity<byte[]> getImageByProductId(@PathVariable int productId) {
@@ -67,46 +65,67 @@ public class ProjectController {
 
         return ResponseEntity.ok().contentType(MediaType.valueOf(product.getImageType())).body(imageFile);
     }
-    //alternate mapping for prouct req
 
     @GetMapping("/product/{productId}/image")
     public ResponseEntity<byte[]> getImageByProductIdAlt(@PathVariable int productId) {
         return getImageByProductId(productId);
     }
-    // 5. Update product by ID
-    @PutMapping("/products/{id}")
-    public ResponseEntity<String>
-    updateProduct(@PathVariable int id,
-                  @RequestPart ProductModel product,
-                  @RequestPart(value = "imageFile", required = false) MultipartFile imageFile) {
 
-        ProductModel product1 = null;
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/products/{id}")
+    public ResponseEntity<String> updateProduct(@PathVariable int id,
+                                                @RequestPart ProductModel product,
+                                                @RequestPart(value = "imageFile", required = false) MultipartFile imageFile) {
+        Optional<ProductModel> existingProduct = productService.getProductById(id);
+        if (existingProduct.isEmpty()) {
+            return new ResponseEntity<>("Product not found", HttpStatus.NOT_FOUND);
+        }
+
+        enforceAdminOwnership(existingProduct.get());
+        product.setAddedBy(authenticatedUserFacade.getCurrentUserId());
+        product.setAddedByEmail(authenticatedUserFacade.getCurrentUserEmail());
+
+        ProductModel updatedProduct;
         try {
-            product1 = productService.updateProduct(id, product, imageFile);
+            updatedProduct = productService.updateProduct(id, product, imageFile);
         } catch (IOException e) {
             return new ResponseEntity<>("Failed to update", HttpStatus.BAD_REQUEST);
         }
-        if (product1 != null) {
+
+        if (updatedProduct != null) {
             return new ResponseEntity<>("updated", HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>("Failed to update", HttpStatus.BAD_REQUEST);
         }
+        return new ResponseEntity<>("Failed to update", HttpStatus.BAD_REQUEST);
     }
-    // 6. Delete product by ID
+
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/products/{id}")
     public ResponseEntity<String> deleteProduct(@PathVariable int id) {
+        Optional<ProductModel> existingProduct = productService.getProductById(id);
+        if (existingProduct.isEmpty()) {
+            return new ResponseEntity<>("FAILED TO DELETE: Product not found.", HttpStatus.NOT_FOUND);
+        }
+
+        enforceAdminOwnership(existingProduct.get());
+
         boolean deleted = productService.deleteProduct(id);
         if (deleted) {
             return new ResponseEntity<>("DELETED", HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>("FAILED TO DELETE: Product not found.", HttpStatus.NOT_FOUND);
         }
+        return new ResponseEntity<>("FAILED TO DELETE: Product not found.", HttpStatus.NOT_FOUND);
     }
-    // 7. Search products by keyword
+
     @GetMapping("/products/search")
     public ResponseEntity<List<ProductModel>> searchProducts(@RequestParam String keyword) {
         System.out.println("Searching with keyword: " + keyword);
         List<ProductModel> products = productService.searchProducts(keyword);
         return new ResponseEntity<>(products, HttpStatus.OK);
+    }
+
+    private void enforceAdminOwnership(ProductModel product) {
+        Integer productOwnerId = product.getAddedBy();
+        if (productOwnerId != null && !productOwnerId.equals(authenticatedUserFacade.getCurrentUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+        }
     }
 }

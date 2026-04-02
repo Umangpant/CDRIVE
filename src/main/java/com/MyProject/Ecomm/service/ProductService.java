@@ -72,6 +72,8 @@ public class ProductService {
             existingProduct.setDailyRentalRate(productDetails.getDailyRentalRate());
             
             existingProduct.setCategory(productDetails.getCategory());
+            existingProduct.setProductAvailable(productDetails.isProductAvailable());
+            existingProduct.setStockQuantity(productDetails.getStockQuantity());
             
             // ✅ CORRECTED: Using setModelYear and getModelYear (Replaced 'releaseDate')
             existingProduct.setModelYear(productDetails.getModelYear());
@@ -84,6 +86,8 @@ public class ProductService {
             
             // ✅ CORRECTED: Using setAvailableLocation and getAvailableLocation (Replaced 'transmissionType')
             existingProduct.setAvailableLocation(productDetails.getAvailableLocation());
+            existingProduct.setAddedBy(productDetails.getAddedBy());
+            existingProduct.setAddedByEmail(productDetails.getAddedByEmail());
 
 
             // Update image data only if a new file is provided

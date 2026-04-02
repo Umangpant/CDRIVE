@@ -2,18 +2,15 @@ package com.MyProject.Ecomm.controller;
 
 import com.MyProject.Ecomm.model.BookingModel;
 import com.MyProject.Ecomm.model.ProductModel;
+import com.MyProject.Ecomm.security.AuthenticatedUserFacade;
 import com.MyProject.Ecomm.service.BookingService;
 import com.MyProject.Ecomm.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
-
-import com.MyProject.Ecomm.security.UserPrincipal;
 
 import java.util.List;
 
@@ -24,11 +21,15 @@ public class AdminController {
 
     private final ProductService productService;
     private final BookingService bookingService;
+    private final AuthenticatedUserFacade authenticatedUserFacade;
 
     @Autowired
-    public AdminController(ProductService productService, BookingService bookingService) {
+    public AdminController(ProductService productService,
+                           BookingService bookingService,
+                           AuthenticatedUserFacade authenticatedUserFacade) {
         this.productService = productService;
         this.bookingService = bookingService;
+        this.authenticatedUserFacade = authenticatedUserFacade;
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -79,17 +80,6 @@ public class AdminController {
     }
 
     private Integer getAuthenticatedAdminId() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
-        }
-
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof UserPrincipal userPrincipal) {
-            Long id = userPrincipal.getId();
-            return Math.toIntExact(id);
-        }
-
-        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        return authenticatedUserFacade.getCurrentUserId();
     }
 }

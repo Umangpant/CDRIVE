@@ -1,10 +1,12 @@
 package com.MyProject.Ecomm.controller;
 
 import com.MyProject.Ecomm.model.BookingModel;
+import com.MyProject.Ecomm.security.AuthenticatedUserFacade;
 import com.MyProject.Ecomm.service.BookingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,12 +21,16 @@ import java.time.LocalDate;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final AuthenticatedUserFacade authenticatedUserFacade;
 
     @Autowired
-    public BookingController(BookingService bookingService) {
+    public BookingController(BookingService bookingService,
+                             AuthenticatedUserFacade authenticatedUserFacade) {
         this.bookingService = bookingService;
+        this.authenticatedUserFacade = authenticatedUserFacade;
     }
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/bookings")
     public ResponseEntity<?> createBooking(@RequestBody BookingModel booking) {
         if (booking.getProductId() == null) {
@@ -38,6 +44,10 @@ public class BookingController {
         if (booking.getBookingDate() == null) {
             booking.setBookingDate(LocalDate.now());
         }
+
+        booking.setUserName(authenticatedUserFacade.getCurrentUserName());
+        booking.setUserEmail(authenticatedUserFacade.getCurrentUserEmail());
+
         BookingModel saved = bookingService.createBooking(booking);
         return new ResponseEntity<>(saved, HttpStatus.CREATED);
     }
