@@ -40,7 +40,7 @@ CDRIVE is a production-ready, full-stack car rental platform that enables users 
 |---|---|
 | **Frontend** | React.js (Vite), Bootstrap, Axios, Context API |
 | **Backend** | Spring Boot, Spring Security (JWT), Spring Data JPA |
-| **Database** | MySQL / PostgreSQL |
+| **Database** | MySQL |
 | **Messaging** | RabbitMQ, SMTP Email Service |
 | **Auth** | JWT (JSON Web Tokens), Role-based Access Control |
 
@@ -226,7 +226,7 @@ npm run dev
 |---|---|---|
 | **Frontend** | [Vercel](https://vercel.com) | ✅ Yes |
 | **Backend** | [Render](https://render.com) | ✅ Yes |
-| **Database** | [Neon](https://neon.tech) (PgSQL) | ✅ Yes |
+| **Database** | [Neon](https://neon.tech)  | ✅ Yes |
 | **Queue** | [CloudAMQP](https://cloudamqp.com) | ✅ Yes |
 
 ### Deploy Backend (Render)
