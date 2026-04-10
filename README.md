@@ -20,7 +20,7 @@
 
 *Browse. Book. Drive.*
 
-[Features](#-core-features) · [Architecture](#-system-architecture) · [Getting Started](#-getting-started) · [Deployment](#-deployment)
+[Features](#-core-features) · [Architecture](#-system-architecture) · [Getting Started](#-getting-started)
 
 </div>
 
@@ -172,23 +172,17 @@ Consumer processes event → triggers Email Service → User receives confirmati
 
 - Java 17+
 - Node.js 18+
-- MySQL or PostgreSQL running locally
+- MySQL running locally
 - RabbitMQ running locally (or use [CloudAMQP](https://www.cloudamqp.com/) free tier)
 
 ### Backend Setup
 
 ```bash
-# Navigate to backend
 cd Backend
-
-# Configure your database and RabbitMQ in:
-# src/main/resources/application.properties
-
-# Run the Spring Boot app
 ./mvnw spring-boot:run
 ```
 
-**Key properties to configure:**
+**Key properties to configure in `application.properties`:**
 ```properties
 spring.datasource.url=jdbc:mysql://localhost:3306/cdrive
 spring.datasource.username=your_username
@@ -203,68 +197,12 @@ jwt.secret=your_jwt_secret_key
 ### Frontend Setup
 
 ```bash
-# Navigate to frontend
 cd Frontend
-
-# Install dependencies
 npm install
-
-# Create a .env file
-echo "VITE_API_URL=http://localhost:8080" > .env
-
-# Start development server
 npm run dev
 ```
 
 > 🌐 App will be available at `http://localhost:5173`
-
----
-
-## 🌐 Deployment
-
-| Service | Platform | Free Tier |
-|---|---|---|
-| **Frontend** | [Vercel](https://vercel.com) | ✅ Yes |
-| **Backend** | [Render](https://render.com) | ✅ Yes |
-| **Database** | [Neon](https://neon.tech)  | ✅ Yes |
-| **Queue** | [CloudAMQP](https://cloudamqp.com) | ✅ Yes |
-
-### Deploy Backend (Render)
-
-1. Connect your GitHub repo on [Render](https://render.com)
-2. Set **Root Directory** → `Backend`
-3. Set **Build Command** → `./mvnw clean package -DskipTests`
-4. Set **Start Command** → `java -jar target/*.jar`
-5. Add environment variables for DB, RabbitMQ, JWT, and SMTP
-
-### Deploy Frontend (Vercel)
-
-1. Import your GitHub repo on [Vercel](https://vercel.com)
-2. Set **Root Directory** → `Frontend`
-3. Set **Framework Preset** → Vite
-4. Add environment variable: `VITE_API_URL=https://your-render-url.onrender.com`
-5. Deploy ✅
-
-### CORS Configuration (Important!)
-
-In your Spring Boot backend, allow requests from your Vercel domain:
-
-```java
-@CrossOrigin(origins = "https://your-app.vercel.app")
-// or configure globally in SecurityConfig
-```
-
----
-
-## 📸 UI Overview
-
-The frontend is built with Bootstrap, featuring a clean and responsive interface:
-
-- 🚗 Car listing cards with images, specs, and daily pricing
-- 📅 Booking flow with date pickers and availability checks
-- 🔑 Authentication pages (Login / Register)
-- 🛡️ Protected routes based on role (Admin / User)
-- 📱 Fully responsive navbar and layouts
 
 ---
 
